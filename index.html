@@ -1,1 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>King's Last Stand — The Splitting Zombie</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: radial-gradient(ellipse at center, #1c1424 0%, #0a0710 100%);
+    font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+    color: #f1e6c9;
+    overflow: hidden;
+    user-select: none;
+  }
+  #wrap {
+    display: flex; flex-direction: column;
+    width: 100vw; height: 100vh;
+    padding: 8px; gap: 8px;
+  }
+  #stage {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    border: 4px solid #6b4a23;
+    border-radius: 10px;
+    box-shadow: 0 0 40px rgba(255,150,40,0.15), inset 0 0 30px rgba(0,0,0,0.6);
+    background: #dcc38a;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%; height: 100%;
+    border-radius: 6px;
+    cursor: crosshair;
+    touch-action: none;
+  }
+  .touch-btn {
+    position: absolute;
+    bottom: 22px;
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,207,107,0.7);
+    background: rgba(20,12,20,0.55);
+    color: #ffcf6b;
+    font-size: 30px;
+    display: none;
+    align-items: center; justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    z-index: 5;
+  }
+  .touch-btn:active { background: rgba(255,207,107,0.35); }
+  #fire-btn { right: 108px; }
+  #bomb-btn { right: 20px; }
+  #hud {
+    flex: 0 0 auto;
+    width: 100%;
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start;
+    gap: 12px; font-size: 13px;
+  }
+  .panel {
+    background: rgba(20,12,20,0.75);
+    border: 2px solid #6b4a23;
+    border-radius: 8px;
+    padding: 6px 10px;
+    min-width: 200px;
+  }
+  .panel h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: 1px; color: #ffcf6b; text-transform: uppercase; }
+  #hearts { display: flex; flex-wrap: wrap; gap: 2px; max-width: 260px; }
+  .heart { font-size: 14px; color: #444; }
+  .heart.on { color: #ff3b3b; text-shadow: 0 0 4px #ff3b3b; }
+  .bar-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+  .bar-label { width: 78px; font-size: 11px; opacity: 0.85; }
+  .bar-track { flex: 1; height: 9px; background: #2a1c1c; border-radius: 4px; overflow: hidden; border: 1px solid #4d3320; }
+  .bar-fill { height: 100%; transition: width 0.08s linear; }
+  .fill-hp { background: linear-gradient(90deg,#2ecc40,#a4ff45); }
+  .fill-cd { background: linear-gradient(90deg,#ffb347,#ff5f6d); }
+  #guard-count { font-size: 11px; color: #d9c9a3; text-transform: none; letter-spacing: 0; }
+  .guard-row { display: flex; align-items: center; justify-content: space-between; margin: 3px 0; font-size: 11px; }
+  .pips { display: flex; gap: 3px; }
+  .pip { width: 9px; height: 9px; border-radius: 50%; background: #2a1c1c; border: 1px solid #4d3320; display: inline-block; }
+  .pip.on { background: #5bd45b; border-color: #2f7d2f; }
+  #status-mid { text-align: center; }
+  #status-mid .big { font-size: 22px; font-weight: bold; color: #ffcf6b; }
+  #status-mid .sub { font-size: 12px; opacity: 0.8; }
+  #overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 14px;
+    background: rgba(5,2,8,0.88);
+    border-radius: 6px;
+    text-align: center;
+    padding: 20px;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h1 { margin: 0; font-size: 34px; color: #ffcf6b; text-shadow: 0 0 12px rgba(255,180,60,0.6); }
+  #overlay p { max-width: 560px; line-height: 1.5; font-size: 14px; color: #d9c9a3; }
+  #overlay button {
+    font-size: 18px; padding: 10px 26px; cursor: pointer;
+    background: linear-gradient(180deg,#ffcf6b,#c98a2b);
+    border: 2px solid #6b4a23; border-radius: 8px;
+    color: #2a1a05; font-weight: bold;
+    box-shadow: 0 4px 0 #6b4a23;
+  }
+  #overlay button:active { transform: translateY(2px); box-shadow: 0 2px 0 #6b4a23; }
+  .keys { display: inline-block; background: #2a1c1c; border: 1px solid #6b4a23; border-radius: 4px; padding: 1px 6px; font-family: monospace; }
+  #mute-btn {
+    position: fixed; top: 10px; right: 10px; z-index: 20;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: rgba(20,12,20,0.85); border: 2px solid #6b4a23;
+    color: #ffcf6b; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #mute-btn:active { transform: translateY(1px); }
+</style>
+</head>
+<body>
+<button id="mute-btn" title="Toggle music/sound">🔊</button>
+<div id="wrap">
+  <div id="hud">
+    <div class="panel" id="king-panel">
+      <h3>King</h3>
+      <div id="hearts"></div>
+      <div class="bar-row"><span class="bar-label">HP</span><div class="bar-track"><div class="bar-fill fill-hp" id="king-hp" style="width:100%"></div></div></div>
+      <div class="bar-row"><span class="bar-label">Bomb</span><div class="bar-track"><div class="bar-fill fill-cd" id="king-super" style="width:100%"></div></div></div>
+    </div>
+    <div class="panel" id="status-mid">
+      <h3>Siege Status</h3>
+      <div class="sub" id="level-info">Level 1/10 — Dawn Patrol</div>
+      <div class="big" id="score">0</div>
+      <div class="sub">Score</div>
+      <div class="sub" id="enemy-count" style="margin-top:6px;">Zombies left: 13</div>
+      <div class="sub" id="monster-count">Monsters: dormant</div>
+    </div>
+    <div class="panel" id="guards-panel">
+      <h3>Guardians <span id="guard-count">(2/8)</span></h3>
+      <div id="guard-list"></div>
+    </div>
+  </div>
+  <div id="stage">
+    <canvas id="game" width="960" height="600"></canvas>
+    <button id="fire-btn" class="touch-btn" title="Fire pistols">🔫</button>
+    <button id="bomb-btn" class="touch-btn" title="Throw bomb">💣</button>
+    <div id="overlay">
+      <h1>King's Last Stand</h1>
+      <p>
+        Pac-Man-esque ghosts pour from the walls, and among them lurks a shapeshifting horror that
+        <b>splits in two</b> each time it's struck down. Lead your King and his minion-like Royal
+        Guardsmen — armed with fire pistols — to purge every last one, across
+        <b>10 escalating levels</b>. Level 1 is a gentle warm-up; by Level 10 the horde is relentless.
+      </p>
+      <p>
+        <b>Mouse:</b> Move Mouse to steer the King &nbsp;|&nbsp; Left Click (hold) fires the pistols
+        &nbsp;|&nbsp; Right Click throws a bomb.<br>
+        <b>Touch:</b> Drag anywhere on the battlefield to steer the King &nbsp;|&nbsp;
+        🔫 button fires the pistols &nbsp;|&nbsp; 💣 button throws a bomb.<br>
+        The King's bomb lands where you aim (or at the nearest foe on touch) and explodes after 1
+        second, damaging every enemy caught in the blast.<br>
+        Guardsmen are fragile — 3 hits from ghosts and they fall — but collect a glowing
+        <b>Guardian icon</b> to recruit more, up to <b>8 guardians</b>, a swirling
+        <b>Speed icon</b> to double your guardians' fire rate, or a blue <b>Shield icon</b> to
+        grant the King and every guardian 5 seconds of immunity while fully healing the guardians.
+        Beware: the shapeshifting Monster kills a guardian in a single touch and grows stronger
+        from it.<br>
+        The King has only <b>3 lives</b> each level. Lose them all and the kingdom falls.
+      </p>
+      <button id="start-btn">Begin the Siege</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const stageEl = document.getElementById('stage');
+let W = canvas.width, H = canvas.height;
+
+function loadImage(src){ const img = new Image(); img.src = src; return img; }
+function loadImages(files){ return files.map(f=>loadImage('assets/'+f)); }
+
+const kingImg = loadImage('assets/king.png');
+const MONSTER_IMAGES = loadImages(['monster.png','monster1.png','monster2.png','monster3.png','monster4.png','monster5.png','monster6.png','monster7.png','monster8.png']);
+const GUARDIAN_IMAGES = loadImages(['gardian.png']);
+const ZOMBIE_IMAGES = loadImages(['zombie.png','zombie2.png','zombie3.png','zombie4.png','zombie5.png','zombie6.png']);
+const SPEED_BONUS_IMG = loadImage('assets/moreSpeed.png');
+const PROTECT_BONUS_IMG = loadImage('assets/protect.png');
+function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function pickRandomExcept(arr, exclude){
+  const pool = exclude ? arr.filter(img=>img!==exclude) : arr;
+  return pickRandom(pool.length ? pool : arr);
+}
+function drawSpriteImage(g, img, targetH, offsetYRatio){
+  const scale = targetH / img.naturalHeight;
+  const w = img.naturalWidth*scale, h = targetH;
+  g.drawImage(img, -w/2, -h*(offsetYRatio===undefined?0.5:offsetYRatio), w, h);
+}
+
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('start-btn');
+const heartsEl = document.getElementById('hearts');
+const kingHpEl = document.getElementById('king-hp');
+const kingSuperEl = document.getElementById('king-super');
+const scoreEl = document.getElementById('score');
+const levelInfoEl = document.getElementById('level-info');
+const enemyCountEl = document.getElementById('enemy-count');
+const monsterCountEl = document.getElementById('monster-count');
+const guardCountEl = document.getElementById('guard-count');
+const guardListEl = document.getElementById('guard-list');
+
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function angleTo(a,b){ return Math.atan2(b.y-a.y, b.x-a.x); }
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+const muteBtn = document.getElementById('mute-btn');
+let audioCtx = null, masterGain = null, muted = false, musicIntervalId = null, musicStep = 0, currentMusicLevel = null;
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = muted ? 0 : 0.4;
+  masterGain.connect(audioCtx.destination);
+}
+function playPistolSound(){
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(950, t);
+  osc.frequency.exponentialRampToValueAtTime(180, t+0.08);
+  gain.gain.setValueAtTime(0.18, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t+0.09);
+  osc.connect(gain).connect(masterGain);
+  osc.start(t); osc.stop(t+0.1);
+}
+const LEVEL_MUSIC = [
+  { notes:[220.00,246.94,261.63,293.66,261.63,246.94], step:0.42 },
+  { notes:[220.00,261.63,293.66,329.63,293.66,261.63,246.94,220.00], step:0.38 },
+  { notes:[220.00,196.00,220.00,246.94,220.00,196.00,174.61,196.00], step:0.36 },
+  { notes:[220,261.63,293.66,329.63,349.23,329.63,293.66,261.63], step:0.32 },
+  { notes:[246.94,293.66,329.63,392.00,349.23,329.63,293.66,246.94], step:0.30 },
+  { notes:[164.81,196.00,220.00,246.94,220.00,196.00,174.61,164.81], step:0.28 },
+  { notes:[220,246.94,261.63,293.66,329.63,349.23,392.00,349.23,329.63,293.66], step:0.24 },
+  { notes:[196,220,246.94,261.63,293.66,261.63,246.94,220,196,174.61], step:0.22 },
+  { notes:[164.81,196,220,261.63,293.66,329.63,392,349.23,293.66,246.94], step:0.20 },
+  { notes:[130.81,164.81,196,220,246.94,293.66,329.63,392,440,392,329.63,293.66,246.94,220,196,164.81], step:0.16 },
+];
+function playMusicStep(cfg){
+  const t = audioCtx.currentTime;
+  const stepTime = cfg.step;
+  const freq = cfg.notes[musicStep % cfg.notes.length];
+  musicStep++;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.linearRampToValueAtTime(0.1, t+0.05);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t+stepTime*0.9);
+  osc.connect(gain).connect(masterGain);
+  osc.start(t); osc.stop(t+stepTime);
+  if(musicStep % 4 === 0){
+    const bass = audioCtx.createOscillator();
+    const bgain = audioCtx.createGain();
+    bass.type = 'sine';
+    bass.frequency.value = freq/2;
+    bgain.gain.setValueAtTime(0.0001, t);
+    bgain.gain.linearRampToValueAtTime(0.14, t+0.05);
+    bgain.gain.exponentialRampToValueAtTime(0.0001, t+stepTime*1.8);
+    bass.connect(bgain).connect(masterGain);
+    bass.start(t); bass.stop(t+stepTime*2);
+  }
+}
+function stopMusic(){
+  if(musicIntervalId){ clearInterval(musicIntervalId); musicIntervalId=null; }
+}
+function setLevelMusic(level){
+  if(currentMusicLevel === level && musicIntervalId) return;
+  currentMusicLevel = level;
+  stopMusic();
+  musicStep = 0;
+  const cfg = LEVEL_MUSIC[(level-1) % LEVEL_MUSIC.length];
+  musicIntervalId = setInterval(()=>playMusicStep(cfg), cfg.step*1000);
+}
+function ensureAudioRunning(level){
+  initAudio();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  setLevelMusic(level);
+}
+muteBtn.addEventListener('click', ()=>{
+  muted = !muted;
+  if(masterGain) masterGain.gain.value = muted ? 0 : 0.4;
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+});
+
+function resizeCanvas(){
+  W = Math.max(320, Math.floor(stageEl.clientWidth));
+  H = Math.max(240, Math.floor(stageEl.clientHeight));
+  canvas.width = W;
+  canvas.height = H;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const mouse = { x: W/2, y: H/2, leftDown:false };
+
+function updateMouseFromEvent(e){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W/rect.width;
+  const scaleY = H/rect.height;
+  mouse.x = clamp((e.clientX-rect.left)*scaleX, 0, W);
+  mouse.y = clamp((e.clientY-rect.top)*scaleY, 0, H);
+}
+window.addEventListener('mousemove', updateMouseFromEvent);
+canvas.addEventListener('mousedown', e=>{
+  updateMouseFromEvent(e);
+  if(e.button===2){
+    if(game && !game.over) game.king.trySuper(mouse.x, mouse.y);
+  } else if(e.button===0){
+    mouse.leftDown = true;
+  }
+});
+window.addEventListener('mouseup', e=>{
+  if(e.button===0) mouse.leftDown = false;
+});
+canvas.addEventListener('contextmenu', e=> e.preventDefault());
+
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  const t = e.touches[0];
+  if(t) updateMouseFromEvent(t);
+}, {passive:false});
+canvas.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  const t = e.touches[0];
+  if(t) updateMouseFromEvent(t);
+}, {passive:false});
+
+function bombTargetForKing(){
+  const king = game.king;
+  let best=null, bestD=Infinity;
+  for(const e of game.enemies){
+    if(e.dead) continue;
+    const d = dist(king,e);
+    if(d<bestD){ bestD=d; best=e; }
+  }
+  if(best) return {x:best.x, y:best.y};
+  return {x: king.x+king.facing.x*180, y: king.y+king.facing.y*180};
+}
+
+const fireBtn = document.getElementById('fire-btn');
+const bombBtn = document.getElementById('bomb-btn');
+fireBtn.addEventListener('mousedown', e=>{ e.preventDefault(); mouse.leftDown = true; });
+fireBtn.addEventListener('mouseup', ()=>{ mouse.leftDown = false; });
+fireBtn.addEventListener('mouseleave', ()=>{ mouse.leftDown = false; });
+fireBtn.addEventListener('touchstart', e=>{ e.preventDefault(); mouse.leftDown = true; }, {passive:false});
+fireBtn.addEventListener('touchend', e=>{ e.preventDefault(); mouse.leftDown = false; }, {passive:false});
+fireBtn.addEventListener('touchcancel', ()=>{ mouse.leftDown = false; });
+
+function triggerBomb(){
+  if(!game || game.over) return;
+  const t = bombTargetForKing();
+  game.king.trySuper(t.x, t.y);
+}
+bombBtn.addEventListener('click', e=>{ e.preventDefault(); triggerBomb(); });
+bombBtn.addEventListener('touchstart', e=>{ e.preventDefault(); triggerBomb(); }, {passive:false});
+
+let particles = [];
+function spawnBurst(x,y,color,count,speed,life){
+  for(let i=0;i<count;i++){
+    const a = rand(0,Math.PI*2);
+    const s = rand(speed*0.3, speed);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:life,maxLife:life,color,r:rand(2,4)});
+  }
+}
+function spawnRing(x,y,color,maxR,life){
+  particles.push({x,y,ring:true,r:0,maxR,life,maxLife:life,color});
+}
+
+let projectiles = [];
+function fireProjectile(x,y,targetX,targetY,speed,dmg,color,owner,radius){
+  const a = angleTo({x,y},{x:targetX,y:targetY});
+  projectiles.push({x,y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,dmg,color,owner,radius:radius||4,life:1.4});
+  playPistolSound();
+}
+
+let bombs = [];
+function throwBomb(x,y,targetX,targetY,damage,radius,fuse){
+  bombs.push({
+    x,y,startX:x,startY:y,targetX,targetY,
+    t:0, travelTime:0.35, fuse, landed:false, exploded:false,
+    damage, radius
+  });
+}
+function explodeBomb(b){
+  spawnRing(b.targetX,b.targetY,'#ff8a3b',b.radius,0.5);
+  spawnBurst(b.targetX,b.targetY,'#ffcf6b',34,260,0.6);
+  for(const e of game.enemies){
+    if(e.dead) continue;
+    if(dist({x:b.targetX,y:b.targetY},e) <= b.radius+e.radius){
+      e.takeDamage(b.damage);
+      const a = angleTo({x:b.targetX,y:b.targetY},e);
+      e.x += Math.cos(a)*60; e.y += Math.sin(a)*60;
+    }
+  }
+}
+
+const LEVELS = [
+  { name:'Dawn Patrol',        zombiesTotal:13, monsterCount:1, diff:{zSpeed:1.00, zDmg:1.00, mHp:1.00, mDmg:1.00}, bonus:[9,14] },
+  { name:'Rising Threat',      zombiesTotal:16, monsterCount:1, diff:{zSpeed:1.08, zDmg:1.10, mHp:1.15, mDmg:1.10}, bonus:[10,15] },
+  { name:'Night Falls',        zombiesTotal:19, monsterCount:1, diff:{zSpeed:1.15, zDmg:1.20, mHp:1.30, mDmg:1.20}, bonus:[11,16] },
+  { name:'Twin Terrors',       zombiesTotal:22, monsterCount:2, diff:{zSpeed:1.22, zDmg:1.30, mHp:1.45, mDmg:1.30}, bonus:[12,17] },
+  { name:'Siege Intensifies',  zombiesTotal:25, monsterCount:2, diff:{zSpeed:1.30, zDmg:1.40, mHp:1.60, mDmg:1.40}, bonus:[13,18] },
+  { name:'Blood Moon',         zombiesTotal:28, monsterCount:2, diff:{zSpeed:1.38, zDmg:1.50, mHp:1.75, mDmg:1.50}, bonus:[14,19] },
+  { name:'The Swarm',          zombiesTotal:31, monsterCount:3, diff:{zSpeed:1.46, zDmg:1.60, mHp:1.90, mDmg:1.60}, bonus:[15,20] },
+  { name:'Desperate Hours',    zombiesTotal:34, monsterCount:3, diff:{zSpeed:1.54, zDmg:1.70, mHp:2.05, mDmg:1.70}, bonus:[16,21] },
+  { name:"Kingdom's Edge",     zombiesTotal:37, monsterCount:3, diff:{zSpeed:1.62, zDmg:1.80, mHp:2.20, mDmg:1.80}, bonus:[17,22] },
+  { name:'The Last Stand',     zombiesTotal:40, monsterCount:4, diff:{zSpeed:1.70, zDmg:1.90, mHp:2.35, mDmg:1.90}, bonus:[18,24] },
+];
+let DIFF = LEVELS[0].diff;
+
+function buildSpawnQueue(total){
+  const batch = 4;
+  const queue = [];
+  let remaining = total, t = 0.3;
+  while(remaining>0){
+    const n = Math.min(batch, remaining);
+    queue.push({t, n});
+    remaining -= n;
+    t += rand(6,9);
+  }
+  return queue;
+}
+
+let game = null;
+
+class Entity {
+  constructor(x,y,radius,hp){
+    this.x=x; this.y=y; this.radius=radius;
+    this.maxHp=hp; this.hp=hp;
+    this.vx=0; this.vy=0;
+    this.dead=false;
+    this.hitFlash=0;
+  }
+  takeDamage(dmg){
+    if(this.dead) return;
+    this.hp -= dmg;
+    this.hitFlash = 0.12;
+    spawnBurst(this.x,this.y,'#ff5b3b',4,90,0.35);
+    if(this.hp<=0){ this.hp=0; this.onDeath(); }
+  }
+  onDeath(){ this.dead = true; }
+}
+
+const KING_MAX_LIVES = 3;
+
+class Player extends Entity {
+  constructor(x,y){
+    super(x,y,20,100);
+    this.speed=230;
+    this.lives=KING_MAX_LIVES;
+    this.facing={x:0,y:-1};
+    this.superCd=0; this.superCdMax=10;
+    this.invuln=1.5;
+    this.superRange=165;
+  }
+  update(dt){
+    this.hitFlash = Math.max(0,this.hitFlash-dt);
+    this.invuln = Math.max(0,this.invuln-dt);
+    this.superCd = Math.max(0,this.superCd-dt);
+
+    const dx = mouse.x-this.x, dy = mouse.y-this.y;
+    const d = Math.hypot(dx,dy);
+    if(d>3){
+      const nx=dx/d, ny=dy/d;
+      this.facing={x:nx,y:ny};
+      const step = Math.min(d, this.speed*dt);
+      this.x += nx*step;
+      this.y += ny*step;
+      this.x = clamp(this.x, this.radius, W-this.radius);
+      this.y = clamp(this.y, this.radius, H-this.radius);
+    }
+  }
+  onDeath(){
+    // The King's death is handled entirely by the lives system in hitByEnemy,
+    // not the generic Entity dead-flag — a permanent death here would wrongly
+    // remove him as a valid enemy target and block his bomb after the first life lost.
+  }
+  trySuper(targetX,targetY){
+    if(this.superCd>0) return;
+    this.superCd = this.superCdMax;
+    throwBomb(this.x,this.y,targetX,targetY,50,this.superRange,1.0);
+  }
+  hitByEnemy(dmg){
+    if(this.invuln>0) return;
+    this.takeDamage(dmg);
+    if(this.hp<=0 && !game.over){
+      this.lives -= 1;
+      if(this.lives<=0){
+        game.triggerLose();
+      } else {
+        this.hp = this.maxHp;
+        this.invuln = 2.2;
+        this.x = W/2; this.y = H/2+40;
+        spawnBurst(this.x,this.y,'#ff3b3b',24,180,0.6);
+      }
+    }
+  }
+  draw(){
+    const g=ctx;
+    g.save();
+    g.translate(this.x,this.y);
+    if(this.invuln>0 && Math.floor(this.invuln*12)%2===0) g.globalAlpha=0.45;
+    if(kingImg.complete && kingImg.naturalWidth>0){
+      const targetH = this.radius*6.0;
+      const scale = targetH / kingImg.naturalHeight;
+      const w = kingImg.naturalWidth*scale, h = targetH;
+      g.drawImage(kingImg, -w/2, -h*0.82, w, h);
+    } else {
+      g.fillStyle='#ffcf6b';
+      g.beginPath(); g.arc(0,0,this.radius,0,Math.PI*2); g.fill();
+    }
+    g.restore();
+  }
+}
+
+class Guard extends Entity {
+  constructor(x,y){
+    super(x,y,15,3);
+    this.speed=270;
+    this.fireCd = rand(0,0.5);
+    this.fireCdMax = 0.55;
+    this.range=250;
+    this.superCd = rand(4,14);
+    this.superCdMax = 15;
+    this.target=null;
+    this.img = pickRandom(GUARDIAN_IMAGES);
+    this.invuln = 0;
+  }
+  onDeath(){
+    super.onDeath();
+    this.target = null;
+    spawnBurst(this.x,this.y,'#f5c518',18,150,0.5);
+  }
+  formationSpot(){
+    const king = game.king;
+    const total = game.guards.length;
+    const index = game.guards.indexOf(this);
+    const baseAngle = Math.atan2(king.facing.y, king.facing.x) + Math.PI;
+    const a = baseAngle + (index/Math.max(total,1))*Math.PI*2;
+    const radius = 55 + Math.max(0,total-2)*6;
+    return { x: king.x + Math.cos(a)*radius, y: king.y + Math.sin(a)*radius };
+  }
+  findTarget(){
+    let best=null, bestD=Infinity;
+    for(const e of game.enemies){
+      if(e.dead) continue;
+      const d = dist(this,e);
+      if(d<this.range && d<bestD){ best=e; bestD=d; }
+    }
+    return best;
+  }
+  update(dt){
+    this.hitFlash = Math.max(0,this.hitFlash-dt);
+    this.fireCd = Math.max(0,this.fireCd-dt);
+    this.superCd = Math.max(0,this.superCd-dt);
+    this.invuln = Math.max(0,this.invuln-dt);
+
+    const spot = this.formationSpot();
+    const d = dist(this,spot);
+    if(d>8){
+      const a = angleTo(this,spot);
+      const step = Math.min(d, this.speed*dt);
+      this.x += Math.cos(a)*step;
+      this.y += Math.sin(a)*step;
+    }
+    this.x = clamp(this.x, this.radius, W-this.radius);
+    this.y = clamp(this.y, this.radius, H-this.radius);
+
+    this.target = this.findTarget();
+    if(mouse.leftDown && this.target && this.fireCd<=0){
+      this.fireCd = this.fireCdMax / game.fireRateMult;
+      fireProjectile(this.x,this.y,this.target.x,this.target.y,520,9,'#ff8a3b',this,4);
+      spawnBurst(this.x,this.y,'#ffb347',3,60,0.15);
+    }
+    if(this.superCd<=0){
+      this.superCd = this.superCdMax;
+      this.doSuper();
+    }
+  }
+  doSuper(){
+    const radius=140;
+    spawnRing(this.x,this.y,'#ff5b3b',radius,0.5);
+    spawnBurst(this.x,this.y,'#ff5b3b',24,200,0.5);
+    for(const e of game.enemies){
+      if(e.dead) continue;
+      if(dist(this,e)<=radius+e.radius){
+        e.takeDamage(26);
+        const a=angleTo(this,e);
+        e.x += Math.cos(a)*40; e.y += Math.sin(a)*40;
+      }
+    }
+  }
+  hitByEnemy(dmg){
+    if(this.invuln>0) return;
+    this.takeDamage(1);
+  }
+  draw(){
+    const g=ctx;
+    g.save();
+    g.translate(this.x,this.y);
+    const h = this.radius*5.2;
+    if(this.invuln>0 && Math.floor(this.invuln*12)%2===0) g.globalAlpha=0.45;
+
+    if(this.img.complete && this.img.naturalWidth>0){
+      if(this.hitFlash>0){ g.filter='brightness(2.2)'; }
+      drawSpriteImage(g, this.img, h, 0.78);
+      g.filter='none';
+    } else {
+      g.fillStyle = this.hitFlash>0 ? '#ffffff' : '#f5c518';
+      g.beginPath(); g.arc(0,0,this.radius,0,Math.PI*2); g.fill();
+    }
+
+    if(this.target){
+      const a = angleTo(this,this.target);
+      g.strokeStyle='#ffb347'; g.lineWidth=3;
+      g.beginPath(); g.moveTo(0,0); g.lineTo(Math.cos(a)*20,Math.sin(a)*20); g.stroke();
+    }
+    for(let i=0;i<this.maxHp;i++){
+      g.fillStyle = i<this.hp ? '#5bd45b' : '#2a1c1c';
+      g.beginPath(); g.arc(-8+i*8,-h*0.78-8,3,0,Math.PI*2); g.fill();
+    }
+    g.restore();
+  }
+}
+
+const ZOMBIE_COLORS = ['#ff2b2b','#ffb8de','#28e0ff','#ffa63d','#8b5cf6','#34d399'];
+
+class Zombie extends Entity {
+  constructor(x,y){
+    super(x,y,16,32);
+    this.speed=rand(55,95)*DIFF.zSpeed;
+    this.dmg=Math.round(8*DIFF.zDmg);
+    this.atkCd=0;
+    this.wobble=rand(0,10);
+    this.color = ZOMBIE_COLORS[Math.floor(rand(0,ZOMBIE_COLORS.length))];
+    this.moveAngle = Math.PI/2;
+    this.img = pickRandom(ZOMBIE_IMAGES);
+  }
+  update(dt){
+    this.hitFlash=Math.max(0,this.hitFlash-dt);
+    this.atkCd=Math.max(0,this.atkCd-dt);
+    this.wobble += dt*6;
+    const target = game.nearestTarget(this);
+    if(target){
+      const a=angleTo(this,target);
+      this.moveAngle = a;
+      const d=dist(this,target);
+      const stopDist = this.radius+target.radius+2;
+      if(d>stopDist){
+        this.x += Math.cos(a)*this.speed*dt;
+        this.y += Math.sin(a)*this.speed*dt;
+      } else if(this.atkCd<=0){
+        this.atkCd=0.9;
+        target.hitByEnemy(this.dmg);
+      }
+    }
+  }
+  onDeath(){
+    super.onDeath();
+    spawnBurst(this.x,this.y,this.color,14,140,0.5);
+    game.onEnemyKilled(this,10);
+  }
+  draw(){
+    const g=ctx;
+    g.save();
+    g.translate(this.x,this.y+Math.sin(this.wobble)*1.5);
+    const r = this.radius;
+    const spriteH = r*4.8;
+    const topY = -spriteH*0.55;
+
+    if(this.img.complete && this.img.naturalWidth>0){
+      if(this.hitFlash>0){ g.filter='brightness(2.2)'; }
+      drawSpriteImage(g, this.img, spriteH, 0.55);
+      g.filter='none';
+    } else {
+      g.fillStyle = this.hitFlash>0 ? '#ffffff' : this.color;
+      g.beginPath(); g.arc(0,0,r,0,Math.PI*2); g.fill();
+    }
+
+    const hpRatio = this.hp/this.maxHp;
+    g.fillStyle='#111'; g.fillRect(-14,topY-6,28,4);
+    g.fillStyle='#5bd45b'; g.fillRect(-14,topY-6,28*hpRatio,4);
+    g.restore();
+  }
+}
+
+class Monster extends Entity {
+  constructor(x,y,stage,excludeImg){
+    const cfg = Monster.CONFIG[stage];
+    super(x,y,cfg.radius, Math.round(cfg.hp*DIFF.mHp));
+    this.stage=stage;
+    this.speed=cfg.speed*DIFF.zSpeed;
+    this.dmg=Math.round(cfg.dmg*DIFF.mDmg);
+    this.atkCd=0;
+    this.spikes=8+stage*2;
+    this.wobble=rand(0,10);
+    this.img = pickRandomExcept(MONSTER_IMAGES, excludeImg);
+  }
+  update(dt){
+    this.hitFlash=Math.max(0,this.hitFlash-dt);
+    this.atkCd=Math.max(0,this.atkCd-dt);
+    this.wobble += dt*4;
+    const target = game.nearestTarget(this);
+    if(target){
+      const a=angleTo(this,target);
+      const d=dist(this,target);
+      const stopDist = this.radius+target.radius+2;
+      if(d>stopDist){
+        this.x += Math.cos(a)*this.speed*dt;
+        this.y += Math.sin(a)*this.speed*dt;
+      } else if(this.atkCd<=0){
+        this.atkCd=1.0;
+        if(target instanceof Guard){
+          this.killGuardian(target);
+        } else {
+          target.hitByEnemy(this.dmg);
+        }
+      }
+    }
+  }
+  killGuardian(guard){
+    if(guard.invuln>0) return;
+    const cfg = Monster.CONFIG[this.stage];
+    guard.takeDamage(guard.hp);
+    const grow = Math.round(cfg.hp*DIFF.mHp*0.3);
+    this.maxHp += grow;
+    this.hp = Math.min(this.hp+grow, this.maxHp);
+    spawnRing(this.x,this.y,'#b04bd6',this.radius+25,0.45);
+    spawnBurst(this.x,this.y,'#d76bff',16,150,0.4);
+  }
+  onDeath(){
+    super.onDeath();
+    spawnBurst(this.x,this.y,'#b04bd6',22,170,0.55);
+    const cfg = Monster.CONFIG[this.stage];
+    game.onEnemyKilled(this,cfg.score);
+    if(this.stage < Monster.CONFIG.length-1){
+      for(let i=0;i<2;i++){
+        const a = rand(0,Math.PI*2);
+        const child = new Monster(this.x+Math.cos(a)*10, this.y+Math.sin(a)*10, this.stage+1, this.img);
+        child.vx = Math.cos(a)*40; child.vy = Math.sin(a)*40;
+        game.enemies.push(child);
+        game.monsterAlive++;
+      }
+    }
+  }
+  draw(){
+    const g=ctx;
+    g.save();
+    g.translate(this.x,this.y+Math.sin(this.wobble)*2);
+    const spriteH = this.radius*4.6;
+    const topY = -spriteH*0.5;
+    if(this.img.complete && this.img.naturalWidth>0){
+      if(this.hitFlash>0){ g.filter='brightness(2.2)'; }
+      drawSpriteImage(g, this.img, spriteH, 0.5);
+      g.filter='none';
+    } else {
+      g.fillStyle = this.stage===0?'#8a2ab5':this.stage===1?'#a13fd0':'#c46be0';
+      g.beginPath(); g.arc(0,0,this.radius,0,Math.PI*2); g.fill();
+    }
+    const hpRatio = this.hp/this.maxHp;
+    g.fillStyle='#111'; g.fillRect(-this.radius,topY-6,this.radius*2,5);
+    g.fillStyle='#d76bff'; g.fillRect(-this.radius,topY-6,this.radius*2*hpRatio,5);
+    g.restore();
+  }
+}
+Monster.CONFIG = [
+  { hp:100, radius:34, speed:48, dmg:14, score:25 },
+  { hp:45,  radius:24, speed:65, dmg:10, score:15 },
+  { hp:20,  radius:16, speed:85, dmg:7,  score:8  },
+];
+
+class Bonus {
+  constructor(x,y,type){
+    this.x=x; this.y=y; this.radius=13;
+    this.bob=rand(0,10);
+    this.life=16;
+    this.collected=false;
+    this.type = type;
+    this.img = type==='speed' ? SPEED_BONUS_IMG : type==='protect' ? PROTECT_BONUS_IMG : GUARDIAN_IMAGES[0];
+  }
+  update(dt){
+    this.bob += dt*3;
+    this.life -= dt;
+  }
+  draw(){
+    const g=ctx;
+    const wobbleY = Math.sin(this.bob)*4;
+    const pulse = 1+Math.sin(this.bob*2)*0.08;
+    const fade = this.life<3 ? (Math.floor(this.life*6)%2===0 ? 0.3 : 1) : 1;
+    const glowColor = this.type==='speed' ? 'rgba(255,59,59,0.35)' : this.type==='protect' ? 'rgba(90,170,255,0.35)' : 'rgba(46,204,113,0.35)';
+    g.save();
+    g.globalAlpha = fade;
+    g.translate(this.x, this.y+wobbleY);
+    g.fillStyle = glowColor;
+    g.beginPath(); g.arc(0,0,this.radius*1.7*pulse,0,Math.PI*2); g.fill();
+    g.scale(pulse,pulse);
+    if(this.img.complete && this.img.naturalWidth>0){
+      drawSpriteImage(g, this.img, this.radius*2.6, 0.5);
+    } else {
+      g.fillStyle = this.type==='speed' ? '#ff3b3b' : this.type==='protect' ? '#5aaaff' : '#2ecc71';
+      g.beginPath(); g.arc(0,0,this.radius,0,Math.PI*2); g.fill();
+    }
+    g.restore();
+  }
+}
+
+class Game {
+  constructor(level, carryScore){
+    this.level = level;
+    this.levelCfg = LEVELS[level-1];
+    DIFF = this.levelCfg.diff;
+    this.king = new Player(W/2,H/2+40);
+    this.guards = [ new Guard(W/2-70,H/2+90), new Guard(W/2+70,H/2+90) ];
+    this.maxGuards = 8;
+    this.enemies = [];
+    this.bonuses = [];
+    this.bonusTimer = rand(this.levelCfg.bonus[0], this.levelCfg.bonus[1]);
+    this.fireRateMult = 1;
+    this.score = carryScore||0;
+    this.over = false;
+    this.won = false;
+    this.zombiesTotal = this.levelCfg.zombiesTotal;
+    this.zombiesSpawned = 0;
+    this.zombiesAlive = 0;
+    this.monsterAlive = 0;
+    this.monstersToSpawn = this.levelCfg.monsterCount;
+    this.monstersSpawned = 0;
+    this.monsterSpawnTimes = [];
+    for(let i=0;i<this.monstersToSpawn;i++) this.monsterSpawnTimes.push(6+i*10);
+    this.time = 0;
+    this.spawnQueue = buildSpawnQueue(this.zombiesTotal);
+  }
+  edgeSpawnPoint(){
+    const side = Math.floor(rand(0,4));
+    const pad = 30;
+    if(side===0) return {x:rand(pad,W-pad), y:-pad};
+    if(side===1) return {x:rand(pad,W-pad), y:H+pad};
+    if(side===2) return {x:-pad, y:rand(pad,H-pad)};
+    return {x:W+pad, y:rand(pad,H-pad)};
+  }
+  spawnBonus(){
+    const pad=60;
+    const r = Math.random();
+    const type = r<0.55 ? 'guard' : (r<0.8 ? 'speed' : 'protect');
+    this.bonuses.push(new Bonus(rand(pad,W-pad), rand(pad+30,H-pad), type));
+  }
+  collectBonus(bonus){
+    if(bonus.type==='speed'){
+      this.fireRateMult *= 2;
+      this.score += 20;
+      spawnBurst(this.king.x,this.king.y,'#ff3b3b',24,180,0.5);
+      spawnRing(this.king.x,this.king.y,'#ff3b3b',70,0.4);
+    } else if(bonus.type==='protect'){
+      this.king.invuln = Math.max(this.king.invuln, 5.0);
+      for(const gd of this.guards){
+        gd.invuln = 5.0;
+        gd.hp = gd.maxHp;
+      }
+      this.score += 20;
+      spawnBurst(this.king.x,this.king.y,'#5aaaff',26,180,0.6);
+      spawnRing(this.king.x,this.king.y,'#5aaaff',80,0.6);
+    } else if(this.guards.length < this.maxGuards){
+      const a = rand(0,Math.PI*2);
+      this.guards.push(new Guard(this.king.x+Math.cos(a)*50, this.king.y+Math.sin(a)*50));
+      spawnBurst(this.king.x,this.king.y,'#2ecc71',22,160,0.5);
+    } else {
+      this.score += 50;
+      this.king.hp = Math.min(this.king.maxHp, this.king.hp+15);
+      spawnBurst(this.king.x,this.king.y,'#ffcf6b',22,160,0.5);
+    }
+  }
+  nearestTarget(from){
+    const candidates = [this.king, ...this.guards].filter(t=>!t.dead);
+    let best=null,bestD=Infinity;
+    for(const c of candidates){
+      const d=dist(from,c);
+      if(d<bestD){ bestD=d; best=c; }
+    }
+    return best;
+  }
+  onEnemyKilled(entity,score){
+    this.score += score;
+    if(entity instanceof Zombie) this.zombiesAlive--;
+    else this.monsterAlive--;
+    this.checkWin();
+  }
+  checkWin(){
+    if(this.over) return;
+    const allZombiesDone = this.zombiesSpawned>=this.zombiesTotal && this.zombiesAlive<=0;
+    const monsterDone = this.monstersSpawned>=this.monstersToSpawn && this.monsterAlive<=0;
+    if(allZombiesDone && monsterDone){
+      this.won = true;
+      this.over = true;
+      if(this.level < LEVELS.length){
+        const nextName = LEVELS[this.level].name;
+        showOverlay(
+          'Level '+this.level+' Cleared!',
+          'The siege of "'+this.levelCfg.name+'" is over. Score so far: '+this.score+'. Next up: Level '+(this.level+1)+' — "'+nextName+'".',
+          'Continue to Level '+(this.level+1),
+          ()=> startLevel(this.level+1, this.score)
+        );
+      } else {
+        showOverlay(
+          'Total Victory!',
+          'All 10 sieges are won. The kingdom stands forever free. Final score: '+this.score,
+          'Play Again',
+          ()=> startLevel(1, 0)
+        );
+      }
+    }
+  }
+  triggerLose(){
+    if(this.over) return;
+    this.over = true;
+    showOverlay(
+      'The Kingdom Has Fallen',
+      'The King fell at Level '+this.level+' ("'+this.levelCfg.name+'"). Final score: '+this.score,
+      'Try Again',
+      ()=> startLevel(1, 0)
+    );
+  }
+  update(dt){
+    if(this.over) return;
+    this.time += dt;
+
+    for(const s of this.spawnQueue){
+      if(!s.done && this.time>=s.t){
+        s.done = true;
+        for(let i=0;i<s.n;i++){
+          const p = this.edgeSpawnPoint();
+          this.enemies.push(new Zombie(p.x,p.y));
+          this.zombiesSpawned++;
+          this.zombiesAlive++;
+        }
+      }
+    }
+    while(this.monstersSpawned<this.monstersToSpawn && this.time>=this.monsterSpawnTimes[this.monstersSpawned]){
+      const p = this.edgeSpawnPoint();
+      this.enemies.push(new Monster(p.x,p.y,0));
+      this.monstersSpawned++;
+      this.monsterAlive++;
+    }
+
+    this.king.update(dt);
+    for(const gd of this.guards) if(!gd.dead) gd.update(dt);
+    for(const e of this.enemies) if(!e.dead) e.update(dt);
+
+    for(const p of projectiles){
+      p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+    }
+    for(const p of projectiles){
+      if(p.life<=0) continue;
+      for(const e of this.enemies){
+        if(e.dead) continue;
+        if(dist(p,e) < e.radius+p.radius){
+          e.takeDamage(p.dmg);
+          p.life = 0;
+          break;
+        }
+      }
+    }
+    projectiles = projectiles.filter(p=>p.life>0 && p.x>-20 && p.x<W+20 && p.y>-20 && p.y<H+20);
+
+    for(const b of bombs){
+      b.t += dt;
+      if(!b.landed){
+        const progress = Math.min(1, b.t/b.travelTime);
+        b.x = b.startX + (b.targetX-b.startX)*progress;
+        b.y = b.startY + (b.targetY-b.startY)*progress - Math.sin(progress*Math.PI)*40;
+        if(progress>=1){ b.landed=true; b.x=b.targetX; b.y=b.targetY; }
+      }
+      if(!b.exploded && b.t>=b.fuse){
+        b.exploded = true;
+        explodeBomb(b);
+      }
+    }
+    bombs = bombs.filter(b=>!b.exploded);
+
+    this.bonusTimer -= dt;
+    if(this.bonusTimer<=0){
+      this.spawnBonus();
+      this.bonusTimer = rand(12,18);
+    }
+    for(const b of this.bonuses){
+      b.update(dt);
+      if(!b.collected && dist(this.king,b) <= this.king.radius+b.radius){
+        b.collected = true;
+        this.collectBonus(b);
+      }
+    }
+    this.bonuses = this.bonuses.filter(b=>!b.collected && b.life>0);
+
+    for(const pt of particles){
+      pt.life -= dt;
+      if(pt.ring){ pt.r += (pt.maxR/pt.maxLife)*dt; }
+      else { pt.x += pt.vx*dt; pt.y += pt.vy*dt; pt.vx*=0.92; pt.vy*=0.92; }
+    }
+    particles = particles.filter(p=>p.life>0);
+
+    this.enemies = this.enemies.filter(e=>!e.dead);
+    this.guards = this.guards.filter(g=>!g.dead);
+
+    updateHUD();
+  }
+  draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#dcc38a';
+    ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(120,90,40,0.12)';
+    for(let x=0;x<W;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<H;y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    for(const pt of particles){
+      const alpha = clamp(pt.life/pt.maxLife,0,1);
+      ctx.globalAlpha = alpha;
+      if(pt.ring){
+        ctx.strokeStyle = pt.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.r,0,Math.PI*2); ctx.stroke();
+      } else {
+        ctx.fillStyle = pt.color;
+        ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.r,0,Math.PI*2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    for(const b of this.bonuses) b.draw();
+    for(const e of this.enemies) e.draw();
+    for(const gd of this.guards) gd.draw();
+    this.king.draw();
+
+    for(const p of projectiles){
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=0.4;
+      ctx.beginPath(); ctx.arc(p.x-p.vx*0.01,p.y-p.vy*0.01,p.radius*1.4,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha=1;
+    }
+
+    for(const b of bombs){
+      const urgent = (b.fuse-b.t) < 0.4 && Math.floor(b.t*20)%2===0;
+      ctx.fillStyle = urgent ? '#ff3b3b' : '#2a2a2a';
+      ctx.beginPath(); ctx.arc(b.x,b.y,9,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#111'; ctx.lineWidth=2; ctx.stroke();
+      ctx.strokeStyle='#ff8a3b'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(b.x,b.y-9); ctx.lineTo(b.x+4,b.y-16); ctx.stroke();
+    }
+
+    ctx.strokeStyle = mouse.leftDown ? '#ff5b3b' : 'rgba(255,207,107,0.7)';
+    ctx.lineWidth = 1.5;
+    const rs = mouse.leftDown ? 10 : 8;
+    ctx.beginPath(); ctx.moveTo(mouse.x-rs,mouse.y); ctx.lineTo(mouse.x-3,mouse.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouse.x+3,mouse.y); ctx.lineTo(mouse.x+rs,mouse.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouse.x,mouse.y-rs); ctx.lineTo(mouse.x,mouse.y-3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mouse.x,mouse.y+3); ctx.lineTo(mouse.x,mouse.y+rs); ctx.stroke();
+  }
+}
+
+function showOverlay(title, text, buttonLabel, onClick){
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = '<h1>'+title+'</h1><p>'+text+'</p><button id="start-btn">'+buttonLabel+'</button>';
+  document.getElementById('start-btn').addEventListener('click', onClick);
+  fireBtn.style.display = 'none';
+  bombBtn.style.display = 'none';
+}
+
+function updateHUD(){
+  const k = game.king;
+  let heartsHtml='';
+  for(let i=0;i<KING_MAX_LIVES;i++){
+    heartsHtml += '<span class="heart'+(i<k.lives?' on':'')+'">&#9829;</span>';
+  }
+  heartsEl.innerHTML = heartsHtml;
+  kingHpEl.style.width = clamp(k.hp/k.maxHp*100,0,100)+'%';
+  kingSuperEl.style.width = clamp((1-k.superCd/k.superCdMax)*100,0,100)+'%';
+  scoreEl.textContent = game.score;
+  levelInfoEl.textContent = 'Level '+game.level+'/'+LEVELS.length+' — '+game.levelCfg.name;
+  const zombiesRemaining = game.zombiesAlive + (game.zombiesTotal - game.zombiesSpawned);
+  enemyCountEl.textContent = 'Zombies left: '+zombiesRemaining;
+  monsterCountEl.textContent = game.monstersSpawned===0 ? 'Monsters: dormant' :
+    (game.monsterAlive>0 ? 'Monsters: active x'+game.monsterAlive :
+    (game.monstersSpawned<game.monstersToSpawn ? 'Monsters: incoming...' : 'Monsters: purged'));
+
+  guardCountEl.textContent = '('+game.guards.length+'/'+game.maxGuards+')';
+  let rows='';
+  game.guards.forEach((g,i)=>{
+    let pips='';
+    for(let p=0;p<g.maxHp;p++){
+      pips += '<span class="pip'+(p<g.hp?' on':'')+'"></span>';
+    }
+    rows += '<div class="guard-row"><span class="bar-label">Guard '+(i+1)+'</span><span class="pips">'+pips+'</span></div>';
+  });
+  guardListEl.innerHTML = rows;
+}
+
+let lastTime=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  if(!lastTime) lastTime=ts;
+  let dt = (ts-lastTime)/1000;
+  lastTime = ts;
+  dt = Math.min(dt, 0.05);
+  if(game){
+    game.update(dt);
+    game.draw();
+  }
+}
+
+function startLevel(level, carryScore){
+  ensureAudioRunning(level);
+  overlay.classList.add('hidden');
+  fireBtn.style.display = 'flex';
+  bombBtn.style.display = 'flex';
+  game = new Game(level, carryScore||0);
+  particles = [];
+  projectiles = [];
+  bombs = [];
+  updateHUD();
+}
+
+startBtn.addEventListener('click', ()=> startLevel(1, 0));
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
 
